@@ -8,7 +8,7 @@ go_library(
     srcs = ["use_go_jsonnet.go"],
     importpath = "github.com/singularityconsulting/go-jsonnet/examples/bazel",
     visibility = ["//visibility:private"],
-    deps = ["@com_github_google_go_jsonnet//:go_default_library"],
+    deps = ["@com_github_singularityconsulting_go_jsonnet//:go_default_library"],
 )
 
 go_binary(
