@@ -47,3 +47,12 @@ void jsonnet_internal_free_string(char *str);
 void jsonnet_internal_free_pointer(void *ptr);
 
 char* jsonnet_internal_realloc(struct JsonnetVm *vm, char *str, size_t sz);
+
+// Prepared snippet handle type for storing parsed AST nodes.
+struct JsonnetProgram {
+    uintptr_t id;
+};
+
+// Internal functions to create and free program handles.
+struct JsonnetProgram *jsonnet_internal_make_program_with_id(uintptr_t id);
+void jsonnet_internal_free_program(struct JsonnetProgram *x);

@@ -179,5 +179,19 @@ class JsonnetTests(unittest.TestCase):
         )
         self.assertEqual(json_str, "84\n")
 
+    def test_prepare_and_run_prepared(self):
+        # Prepare a snippet and run it multiple times
+        prepared = _gojsonnet.prepare_snippet(
+            self.test_filename,
+            self.input_snippet,
+            import_callback=import_callback_encode,
+            native_callbacks=native_callbacks,
+        )
+        first = _gojsonnet.run_prepared(prepared)
+        self.assertEqual(first, "true\n")
+        # Re-run to ensure reusability
+        second = _gojsonnet.run_prepared(prepared)
+        self.assertEqual(second, "true\n")
+
 if __name__ == '__main__':
     unittest.main()

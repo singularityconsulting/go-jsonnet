@@ -21,6 +21,11 @@ limitations under the License.
 
 #include "libjsonnet.h"
 
+struct JsonnetProgram;
+struct JsonnetProgram *jsonnet_prepare_snippet(struct JsonnetVm *vm, const char *filename, const char *src, int *error);
+char *jsonnet_run_prepared(struct JsonnetVm *vm, struct JsonnetProgram *program, int *error);
+void jsonnet_program_destroy(struct JsonnetVm *vm, struct JsonnetProgram *program);
+
 static char *jsonnet_str(struct JsonnetVm *vm, const char *str)
 {
     size_t size = strlen(str) + 1;
@@ -465,6 +470,201 @@ static int handle_native_callbacks(struct JsonnetVm *vm, PyObject *native_callba
     return 1;
 }
 
+typedef struct {
+    PyObject_HEAD
+    struct JsonnetVm *vm;
+    struct JsonnetProgram *program;
+} PreparedSnippetObject;
+
+static void PreparedSnippet_dealloc(PreparedSnippetObject *self)
+{
+    if (self->program) {
+        jsonnet_program_destroy(self->vm, self->program);
+    }
+    if (self->vm) {
+        jsonnet_destroy(self->vm);
+    }
+    Py_TYPE(self)->tp_free((PyObject*)self);
+}
+
+#if PY_MAJOR_VERSION >= 3
+static PyTypeObject PreparedSnippet_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    "_gojsonnet.PreparedSnippet",        /* tp_name */
+    sizeof(PreparedSnippetObject),       /* tp_basicsize */
+    0,                                    /* tp_itemsize */
+    (destructor)PreparedSnippet_dealloc, /* tp_dealloc */
+    0,                                    /* tp_print */
+    0,                                    /* tp_getattr */
+    0,                                    /* tp_setattr */
+    0,                                    /* tp_reserved */
+    0,                                    /* tp_repr */
+    0,                                    /* tp_as_number */
+    0,                                    /* tp_as_sequence */
+    0,                                    /* tp_as_mapping */
+    0,                                    /* tp_hash  */
+    0,                                    /* tp_call */
+    0,                                    /* tp_str */
+    0,                                    /* tp_getattro */
+    0,                                    /* tp_setattro */
+    0,                                    /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT,                   /* tp_flags */
+    "Prepared Jsonnet snippet for repeated execution", /* tp_doc */
+};
+#else
+static PyTypeObject PreparedSnippet_Type = {
+    PyObject_HEAD_INIT(NULL)
+    0,                                    /* ob_size */
+    "_gojsonnet.PreparedSnippet",        /* tp_name */
+    sizeof(PreparedSnippetObject),       /* tp_basicsize */
+    0,                                    /* tp_itemsize */
+    (destructor)PreparedSnippet_dealloc, /* tp_dealloc */
+    0,                                    /* tp_print */
+    0,                                    /* tp_getattr */
+    0,                                    /* tp_setattr */
+    0,                                    /* tp_compare */
+    0,                                    /* tp_repr */
+    0,                                    /* tp_as_number */
+    0,                                    /* tp_as_sequence */
+    0,                                    /* tp_as_mapping */
+    0,                                    /* tp_hash  */
+    0,                                    /* tp_call */
+    0,                                    /* tp_str */
+    0,                                    /* tp_getattro */
+    0,                                    /* tp_setattro */
+    0,                                    /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT,                   /* tp_flags */
+    "Prepared Jsonnet snippet for repeated execution", /* tp_doc */
+};
+#endif
+
+static PyObject* prepare_snippet(PyObject* self, PyObject* args, PyObject *keywds)
+{
+    const char *filename, *src;
+    unsigned max_stack = 500, gc_min_objects = 1000, max_trace = 20;
+    double gc_growth_trigger = 2;
+    Py_ssize_t num_jpathdir, i;
+    int error;
+    const char *jpath_str;
+    PyObject *jpathdir = NULL;
+    PyObject *ext_vars = NULL, *ext_codes = NULL;
+    PyObject *tla_vars = NULL, *tla_codes = NULL;
+    PyObject *import_callback = NULL;
+    PyObject *native_callbacks = NULL;
+    struct JsonnetVm *vm;
+    struct JsonnetProgram *program;
+    static char *kwlist[] = {
+        "filename", "src", "jpathdir",
+        "max_stack", "gc_min_objects", "gc_growth_trigger", "ext_vars",
+        "ext_codes", "tla_vars", "tla_codes", "max_trace", "import_callback",
+        "native_callbacks",
+        NULL
+    };
+
+    if (!PyArg_ParseTupleAndKeywords(
+        args, keywds, "ss|OIIdOOOOIOO", kwlist,
+        &filename, &src, &jpathdir,
+        &max_stack, &gc_min_objects, &gc_growth_trigger, &ext_vars,
+        &ext_codes, &tla_vars, &tla_codes, &max_trace, &import_callback,
+        &native_callbacks)) {
+        return NULL;
+    }
+
+    PyThreadState *py_thread;
+
+    vm = jsonnet_make();
+    jsonnet_max_stack(vm, max_stack);
+    jsonnet_gc_min_objects(vm, gc_min_objects);
+    jsonnet_max_trace(vm, max_trace);
+    jsonnet_gc_growth_trigger(vm, gc_growth_trigger);
+
+    if (jpathdir != NULL) {
+        /* Support string for backward compatibility with <= 0.15.0 */
+#if PY_MAJOR_VERSION >= 3
+        if (PyUnicode_Check(jpathdir)) {
+            jpath_str = PyUnicode_AsUTF8(jpathdir);
+#else
+        if (PyString_Check(jpathdir)) {
+            jpath_str = PyString_AsString(jpathdir);
+#endif
+            jsonnet_jpath_add(vm, jpath_str);
+        } else if (PyList_Check(jpathdir)) {
+            num_jpathdir = PyList_Size(jpathdir);
+            for (i = 0; i < num_jpathdir ; ++i) {
+                PyObject *jpath = PyList_GetItem(jpathdir, i);
+#if PY_MAJOR_VERSION >= 3
+                if (PyUnicode_Check(jpath)) {
+                    jpath_str = PyUnicode_AsUTF8(jpath);
+#else
+                if (PyString_Check(jpath)) {
+                    jpath_str = PyString_AsString(jpath);
+#endif
+                    jsonnet_jpath_add(vm, jpath_str);
+                }
+            }
+        }
+    }
+
+    if (!handle_vars(vm, ext_vars, 0, 0)) return NULL;
+    if (!handle_vars(vm, ext_codes, 1, 0)) return NULL;
+    if (!handle_vars(vm, tla_vars, 0, 1)) return NULL;
+    if (!handle_vars(vm, tla_codes, 1, 1)) return NULL;
+    {
+        struct ImportCtx ctx = { vm, &py_thread, import_callback };
+        if (!handle_import_callback(&ctx, import_callback)) {
+            return NULL;
+        }
+        struct NativeCtx *ctxs = NULL;
+        if (!handle_native_callbacks(vm, native_callbacks, &ctxs, &py_thread)) {
+            free(ctxs);
+            return NULL;
+        }
+        py_thread = PyEval_SaveThread();
+        program = jsonnet_prepare_snippet(vm, filename, src, &error);
+        PyEval_RestoreThread(py_thread);
+        free(ctxs);
+    }
+
+    if (error || program == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, error ? "Failed to prepare snippet" : "");
+        jsonnet_destroy(vm);
+        return NULL;
+    }
+
+    PreparedSnippetObject *self = PyObject_New(PreparedSnippetObject, &PreparedSnippet_Type);
+    if (!self) {
+        jsonnet_program_destroy(vm, program);
+        jsonnet_destroy(vm);
+        return NULL;
+    }
+    self->vm = vm;
+    self->program = program;
+    return (PyObject*)self;
+}
+
+static PyObject* run_prepared(PyObject* self, PyObject* obj)
+{
+    PreparedSnippetObject *ps;
+    if (!PyObject_TypeCheck(obj, &PreparedSnippet_Type)) {
+        PyErr_SetString(PyExc_TypeError, "run_prepared requires a PreparedSnippet object");
+        return NULL;
+    }
+    ps = (PreparedSnippetObject*)obj;
+    int error;
+    char *out;
+    PyThreadState *py_thread = PyEval_SaveThread();
+    out = jsonnet_run_prepared(ps->vm, ps->program, &error);
+    PyEval_RestoreThread(py_thread);
+    if (error) {
+        PyErr_SetString(PyExc_RuntimeError, out);
+        jsonnet_realloc(ps->vm, out, 0);
+        return NULL;
+    }
+    PyObject *ret = PyUnicode_FromString(out);
+    jsonnet_realloc(ps->vm, out, 0);
+    return ret;
+}
+
 
 static PyObject* evaluate_file(PyObject* self, PyObject* args, PyObject *keywds)
 {
@@ -650,6 +850,10 @@ static PyMethodDef module_methods[] = {
      "Interpret the given Jsonnet file."},
     {"evaluate_snippet", (PyCFunction)evaluate_snippet, METH_VARARGS | METH_KEYWORDS,
      "Interpret the given Jsonnet code."},
+    {"prepare_snippet", (PyCFunction)prepare_snippet, METH_VARARGS | METH_KEYWORDS,
+     "Prepare a Jsonnet snippet for repeated execution."},
+    {"run_prepared", (PyCFunction)run_prepared, METH_O,
+     "Run a prepared Jsonnet snippet and return its result."},
     {NULL, NULL, 0, NULL}
 };
 
@@ -667,9 +871,15 @@ PyMODINIT_FUNC PyInit__gojsonnet(void)
 {
     PyObject *module = PyModule_Create(&_module);
     PyObject *version_str = PyUnicode_FromString(LIB_JSONNET_VERSION);
-    if (PyModule_AddObject(module, "version", PyUnicode_FromString(LIB_JSONNET_VERSION)) < 0) {
-      Py_XDECREF(version_str);
+    if (PyModule_AddObject(module, "version", version_str) < 0) {
+        Py_XDECREF(version_str);
     }
+
+    if (PyType_Ready(&PreparedSnippet_Type) < 0) {
+        return NULL;
+    }
+    Py_INCREF(&PreparedSnippet_Type);
+    PyModule_AddObject(module, "PreparedSnippet", (PyObject *)&PreparedSnippet_Type);
     return module;
 }
 #else
@@ -678,7 +888,12 @@ PyMODINIT_FUNC init_gojsonnet(void)
     PyObject *module = Py_InitModule3("_gojsonnet", module_methods, "A Python interface to Jsonnet.");
     PyObject *version_str = PyUnicode_FromString(LIB_JSONNET_VERSION);
     if (PyModule_AddObject(module, "version", PyString_FromString(LIB_JSONNET_VERSION)) < 0) {
-      Py_XDECREF(version_str);
+        Py_XDECREF(version_str);
     }
+    if (PyType_Ready(&PreparedSnippet_Type) < 0) {
+        return;
+    }
+    Py_INCREF(&PreparedSnippet_Type);
+    PyModule_AddObject(module, "PreparedSnippet", (PyObject *)&PreparedSnippet_Type);
 }
 #endif
