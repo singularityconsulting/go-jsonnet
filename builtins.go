@@ -34,7 +34,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/go-jsonnet/ast"
+	"github.com/singularityconsulting/go-jsonnet/ast"
 	"golang.org/x/crypto/sha3"
 )
 

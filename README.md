@@ -2,12 +2,12 @@
 
 [![GoDoc Widget]][GoDoc] [![Travis Widget]][Travis] [![Coverage Status Widget]][Coverage Status]
 
-[GoDoc]: https://godoc.org/github.com/google/go-jsonnet
-[GoDoc Widget]: https://godoc.org/github.com/google/go-jsonnet?status.png
-[Travis]: https://travis-ci.org/google/go-jsonnet
-[Travis Widget]: https://travis-ci.org/google/go-jsonnet.svg?branch=master
-[Coverage Status Widget]: https://coveralls.io/repos/github/google/go-jsonnet/badge.svg?branch=master
-[Coverage Status]: https://coveralls.io/github/google/go-jsonnet?branch=master
+[GoDoc]: https://godoc.org/github.com/singularityconsulting/go-jsonnet
+[GoDoc Widget]: https://godoc.org/github.com/singularityconsulting/go-jsonnet?status.png
+[Travis]: https://travis-ci.org/singularityconsulting/go-jsonnet
+[Travis Widget]: https://travis-ci.org/singularityconsulting/go-jsonnet.svg?branch=master
+[Coverage Status Widget]: https://coveralls.io/repos/github/singularityconsulting/go-jsonnet/badge.svg?branch=master
+[Coverage Status]: https://coveralls.io/github/singularityconsulting/go-jsonnet?branch=master
 
 This an implementation of [Jsonnet](http://jsonnet.org/) in pure Go. It is a feature complete, production-ready implementation. It is compatible with the original [Jsonnet C++ implementation](https://github.com/google/jsonnet). Bindings to C and Python are available (but not battle-tested yet).
 
@@ -18,10 +18,10 @@ This code is known to work on Go 1.23 and above. We recommend always using the n
 ```shell
 # Using `go get` to install binaries is deprecated.
 # The version suffix is mandatory.
-go install github.com/google/go-jsonnet/cmd/jsonnet@latest
+go install github.com/singularityconsulting/go-jsonnet/cmd/jsonnet@latest
 
 # Or other tools in the 'cmd' directory
-go install github.com/google/go-jsonnet/cmd/jsonnet-lint@latest
+go install github.com/singularityconsulting/go-jsonnet/cmd/jsonnet-lint@latest
 ```
 
 It's also available on Homebrew:
@@ -32,7 +32,7 @@ brew install go-jsonnet
 
 `jsonnetfmt` and `jsonnet-lint` are also available as [pre-commit](https://github.com/pre-commit/pre-commit) hooks. Example `.pre-commit-config.yaml`:
 ```yaml
-- repo: https://github.com/google/go-jsonnet
+- repo: https://github.com/singularityconsulting/go-jsonnet
   rev: # ref you want to point at, e.g. v0.17.0
   hooks:
     - id: jsonnet-format
@@ -48,7 +48,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/google/go-jsonnet"
+	"github.com/singularityconsulting/go-jsonnet"
 )
 
 func main() {
@@ -86,7 +86,7 @@ func main() {
 ## Build instructions (go 1.23+)
 
 ```bash
-git clone git@github.com:google/go-jsonnet.git
+git clone git@github.com:singularityconsulting/go-jsonnet.git
 cd go-jsonnet
 go build ./cmd/jsonnet
 go build ./cmd/jsonnetfmt
@@ -94,7 +94,7 @@ go build ./cmd/jsonnet-deps
 ```
 To build with [Bazel](https://bazel.build/) instead:
 ```bash
-git clone git@github.com:google/go-jsonnet.git
+git clone git@github.com:singularityconsulting/go-jsonnet.git
 cd go-jsonnet
 git submodule init
 git submodule update

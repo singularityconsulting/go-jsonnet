@@ -3,8 +3,8 @@
 package common
 
 import (
-	"github.com/google/go-jsonnet/ast"
-	"github.com/google/go-jsonnet/internal/errors"
+	"github.com/singularityconsulting/go-jsonnet/ast"
+	"github.com/singularityconsulting/go-jsonnet/internal/errors"
 )
 
 // VariableKind allows distinguishing various kinds of variables.

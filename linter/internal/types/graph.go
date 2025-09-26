@@ -1,7 +1,7 @@
 package types
 
 import (
-	"github.com/google/go-jsonnet/ast"
+	"github.com/singularityconsulting/go-jsonnet/ast"
 )
 
 type typeGraph struct {

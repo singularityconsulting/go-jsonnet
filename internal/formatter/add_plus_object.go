@@ -17,8 +17,8 @@ limitations under the License.
 package formatter
 
 import (
-	"github.com/google/go-jsonnet/ast"
-	"github.com/google/go-jsonnet/internal/pass"
+	"github.com/singularityconsulting/go-jsonnet/ast"
+	"github.com/singularityconsulting/go-jsonnet/internal/pass"
 )
 
 // AddPlusObject is a formatter pass that replaces e {} with e + {}.

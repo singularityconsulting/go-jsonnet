@@ -29,9 +29,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-jsonnet/ast"
-	"github.com/google/go-jsonnet/internal/parser"
-	"github.com/google/go-jsonnet/internal/testutils"
+	"github.com/singularityconsulting/go-jsonnet/ast"
+	"github.com/singularityconsulting/go-jsonnet/internal/parser"
+	"github.com/singularityconsulting/go-jsonnet/internal/testutils"
 )
 
 var update = flag.Bool("update", false, "update .golden files")
