@@ -61,7 +61,7 @@ func (i *importer) Import(importedFrom, importedPath string) (contents jsonnet.C
 	var (
 		buflen     = C.size_t(0)
 		msgC       *C.char
-		bufPtr       unsafe.Pointer
+		bufPtr     unsafe.Pointer
 		dir, _     = path.Split(importedFrom)
 		foundHereC *C.char
 	)
@@ -84,7 +84,6 @@ func (i *importer) Import(importedFrom, importedPath string) (contents jsonnet.C
 
 	foundHere := C.GoString(foundHereC)
 	C.jsonnet_internal_free_string(foundHereC)
-
 
 	if _, isCached := i.contentCache[foundHere]; !isCached {
 		i.contentCache[foundHere] = jsonnet.MakeContentsRaw(result)
@@ -654,7 +653,7 @@ func (o *traceOut) Write(p []byte) (int, error) {
 
 	success := C.int(0)
 	var n C.int = C.jsonnet_internal_execute_writer(o.cb, unsafe.Pointer(&p[0]),
-				                                    C.size_t(len(p)), &success)
+		C.size_t(len(p)), &success)
 	if success != 1 {
 		return int(n), errors.New("std.trace() failed to write to output stream")
 	}
@@ -672,6 +671,67 @@ func jsonnet_realloc(vmRef *C.struct_JsonnetVm, buf *C.char, sz C.size_t) *C.cha
 	return C.jsonnet_internal_realloc(vmRef, buf, sz)
 }
 
+//export jsonnet_internal_make_program_with_id
+func jsonnet_internal_make_program_with_id(id C.uintptr_t) *C.struct_JsonnetProgram {
+	return C.jsonnet_internal_make_program_with_id(id)
+}
+
+//export jsonnet_internal_free_program
+func jsonnet_internal_free_program(pr *C.struct_JsonnetProgram) {
+	if err := handles.free(uintptr(pr.id)); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+	C.jsonnet_internal_free_program(pr)
+}
+
+//export jsonnet_prepare_snippet
+func jsonnet_prepare_snippet(vmRef *C.struct_JsonnetVm, filename *C.char, code *C.char, e *C.int) *C.struct_JsonnetProgram {
+	f := C.GoString(filename)
+	s := C.GoString(code)
+	node, err := jsonnet.SnippetToAST(f, s)
+	if err != nil {
+		*e = 1
+		return nil
+	}
+	*e = 0
+	id, err := handles.make(node)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+	return C.jsonnet_internal_make_program_with_id(C.uintptr_t(id))
+}
+
+//export jsonnet_run_prepared
+func jsonnet_run_prepared(vmRef *C.struct_JsonnetVm, programRef *C.struct_JsonnetProgram, e *C.int) *C.char {
+	vm := getVM(vmRef)
+	ref, err := handles.get(uintptr(programRef.id))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+	node, ok := ref.(ast.Node)
+	if !ok {
+		fmt.Fprintln(os.Stderr, "provided handle is not a program")
+		os.Exit(1)
+	}
+	out, err := vm.Evaluate(node)
+	var result *C.char
+	if err != nil {
+		*e = 1
+		result = C.CString(err.Error())
+	} else {
+		*e = 0
+		result = C.CString(out)
+	}
+	return result
+}
+
+//export jsonnet_program_destroy
+func jsonnet_program_destroy(vmRef *C.struct_JsonnetVm, programRef *C.struct_JsonnetProgram) {
+	jsonnet_internal_free_program(programRef)
+}
 
 func main() {
 }
