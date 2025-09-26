@@ -1,0 +1,101 @@
+name: Build and Test
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, review_requested]
+    branches-ignore:
+      - "gh-pages"
+  push:
+    branches:
+      - "master"
+      - "prepare-release"
+    tags:
+      - v*
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check_code_format:
+    name: Check code formatting
+    runs-on: "ubuntu-22.04"
+    # The code currently doesn't pass formatting.
+    # Enable this workflow job once it does, to detect regressions.
+    if: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check clang-format (make test-formatting)
+        run: |
+          make test-formatting
+
+  plain_makefile:
+    name: Build and test using plain Makefile
+    runs-on: "ubuntu-22.04"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (make all)
+        run: |
+          make all
+      - name: Test (make test)
+        run: |
+          make test
+
+  python_module:
+    name: Build and test Python module
+    runs-on: "ubuntu-22.04"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: Build
+        run: |
+          pip install build
+          python -m build --sdist --wheel
+      - name: Test
+        run: |
+          python -m venv --upgrade-deps --clear trial &&
+          cd trial &&
+          source bin/activate &&
+          pip install ../dist/jsonnet-*.whl &&
+          python3 ../python/_jsonnet_test.py
+
+  cmake_build:
+    name: Build and test using CMake
+    runs-on: "ubuntu-22.04"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure (cmake)
+        run: |
+          cmake -B "${{github.workspace}}/build"
+      - name: Build (cmake --build)
+        working-directory: ${{github.workspace}}/build
+        run: |
+          cmake --build .
+      - name: Test (ctest))
+        working-directory: ${{github.workspace}}/build
+        run: |
+          ctest --output-on-failure
+
+  bazel_build:
+    name: Build and test using Bazel
+    runs-on: "ubuntu-22.04"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          bazelisk build --lockfile_mode=error -c opt //cmd:all
+      - name: Test
+        run: |
+          bazelisk test --lockfile_mode=error //...
+
+  bazel_use_module:
+    name: Build Bazel example
+    runs-on: "ubuntu-22.04"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          cd examples/bazel
+          bazelisk build --lockfile_mode=off //...
